@@ -18,6 +18,9 @@ def extract_data(page):
             "viewstate": ""}
     with open(page, "r") as html:
         # do something here to find the necessary values
+        # also u can repalce the following two lines with :
+        # r=requests.get("http://......")
+        # soup=BeautifulSoup(r.text)
         soup = BeautifulSoup(html,"lxml")
         event = soup.find(id="__EVENTVALIDATION")
         data["eventvalidation"] = event["value"]
