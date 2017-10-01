@@ -55,7 +55,7 @@ def audit_file(filename, fields):
         for row in reader:
             for field in fields:
                 value=row[field]
-                if value=="" or value==None:
+                if value=="" or value=='NULL':
                     fieldtypes[field].add(type(None))
                 elif value.startswith('{'):
                     fieldtypes[field].add(list)
