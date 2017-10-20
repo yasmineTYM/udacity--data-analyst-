@@ -5,6 +5,7 @@ import pprint
 import re
 import codecs
 import json
+
 """
 Your task is to wrangle the data and transform the shape of the data
 into the model we mentioned earlier. The output should be a list of dictionaries
@@ -39,25 +40,10 @@ as an argument. You should return a dictionary, containing the shaped data for t
 We have also provided a way to save the data in a file, so that you could use
 mongoimport later on to import the shaped data into MongoDB. 
 
-Note that in this exercise we do not use the 'update street name' procedures
-you worked on in the previous exercise. If you are using this code in your final
-project, you are strongly encouraged to use the code from previous exercise to 
-update the street names before you save them to JSON. 
 
 In particular the following things should be done:
-- you should process only 2 types of top level tags: "node" and "way"
-- all attributes of "node" and "way" should be turned into regular key/value pairs, except:
-    - attributes in the CREATED array should be added under a key "created"
-    - attributes for latitude and longitude should be added to a "pos" array,
-      for use in geospacial indexing. Make sure the values inside "pos" array are floats
-      and not strings. 
-- if the second level tag "k" value contains problematic characters, it should be ignored
-- if the second level tag "k" value starts with "addr:", it should be added to a dictionary "address"
-- if the second level tag "k" value does not start with "addr:", but contains ":", you can
-  process it in a way that you feel is best. For example, you might split it into a two-level
-  dictionary like with "addr:", or otherwise convert the ":" to create a valid key.
-- if there is a second ":" that separates the type/direction of a street,
-  the tag should be ignored, for example:
+
+
 
 <tag k="addr:housenumber" v="5158"/>
 <tag k="addr:street" v="North Lincoln Avenue"/>
@@ -90,8 +76,50 @@ should be turned into
 lower = re.compile(r'^([a-z]|_)*$')
 lower_colon = re.compile(r'^([a-z]|_)*:([a-z]|_)*$')
 problemchars = re.compile(r'[=\+/&<>;\'"\?%#$@\,\. \t\r\n]')
+VALID_POSTAL = re.compile('\d\d\d\d')
 
 CREATED = [ "version", "changeset", "timestamp", "user", "uid"]
+mapping = { "St": "Street",
+            "St.": "Street",
+            "Rd.": "Road",
+            "Rd": "Road",
+            "rd": "Road",
+            "rd.": "Road",
+            "Ave": "Avenue",
+            "Ave.": "Avenue"
+            }
+
+#update the name of street 
+"""
+Note that in this exercise we do not use the 'update street name' procedures
+you worked on in the previous exercise. If you are using this code in your final
+project, you are strongly encouraged to use the code from previous exercise to 
+update the street names before you save them to JSON. 
+
+"""
+def update_name(list,mapping):
+  name_list=list.replace(')','').replace(' (',';').replace('(',';').split(';')
+  for i,name in enumerate(name_list):
+    part=name.split('')
+    if part[-1] in mapping:
+      part[-1]=mapping[part[-1]]
+      name_list[i]="".join(part)
+  result="(".join(name_list)
+  return result
+
+def is_postcode(elem):
+  return(elem.attrib['k']=='addr:postcode')
+
+##update the invalid postcode
+def update_postcode(code):
+  if VALID_POSTAL.match(code):
+      return (code, code)
+  elif INVALID_POSTAL_MISSING_HYPHEN.match(code):
+      fixed = '0'+code
+      return (code, fixed)
+  else:
+      return (code,None)
+
 
 
 def shape_element(element):
@@ -100,7 +128,13 @@ def shape_element(element):
     node["address"]={}
     node["pos"]=[]
     refs=[]
-
+"""- you should process only 2 types of top level tags: "node" and "way"
+- all attributes of "node" and "way" should be turned into regular key/value pairs, except:
+    - attributes in the CREATED array should be added under a key "created"
+    - attributes for latitude and longitude should be added to a "pos" array,
+      for use in geospacial indexing. Make sure the values inside "pos" array are floats
+      and not strings. 
+"""
     if element.tag == "node" or element.tag == "way" :
         if "id" in element.attrib:
             node["id"]=element.attrib["id"]
@@ -117,16 +151,31 @@ def shape_element(element):
         if "lon" in element.attrib:
             node["pos"].append(float(element.attrib["lon"]))
 
+"""
+- if the second level tag "k" value contains problematic characters, it should be ignored
+- if the second level tag "k" value starts with "addr:", it should be added to a dictionary "address"
+- if the second level tag "k" value does not start with "addr:", but contains ":", you can
+  process it in a way that you feel is best. For example, you might split it into a two-level
+  dictionary like with "addr:", or otherwise convert the ":" to create a valid key.
+- if there is a second ":" that separates the type/direction of a street,
+  the tag should be ignored, for example:
+  """
         for tag in element.iter("tag"):
             if not(problemchars.search(tag.attrib['k'])):
                 if tag.attrib['k'] == "addr:housenumber":
-                    node["address"]["housenumber"]=tag.attrib['v']
+                  node["address"]["housenumber"]=tag.attrib['v']
                 if tag.attrib['k'] == "addr:postcode":
-                    node["address"]["postcode"]=tag.attrib['v']
+                  try:
+                    node["address"]["postcode"]=update_postcode(tag.attrib['v'])
+                  else:
+                    node["address"]["postcode"]=tag.attrib(['v'])
                 if tag.attrib['k'] == "addr:street":
-                    node["address"]["street"]=tag.attrib['v']
+                  try:
+                    node["address"]["street"]=update_name(tag.attrib['v'])
+                  else:
+                    node["address"]["street"]=tag.attrib(['v'])
                 if tag.attrib['k'].find("addr")==-1:
-                    node[tag.attrib['k']]=tag.attrib['v']
+                  node[tag.attrib['k']]=tag.attrib['v']
         for nd in element.iter("nd"):
              refs.append(nd.attrib["ref"])
         if node["address"] =={}:
@@ -160,26 +209,5 @@ def test():
     data = process_map('melbourne_australia.osm', True)
     #pprint.pprint(data)
     
-    # correct_first_elem = {
-    #     "id": "261114295", 
-    #     "visible": "true", 
-    #     "type": "node", 
-    #     "pos": [41.9730791, -87.6866303], 
-    #     "created": {
-    #         "changeset": "11129782", 
-    #         "user": "bbmiller", 
-    #         "version": "7", 
-    #         "uid": "451048", 
-    #         "timestamp": "2012-03-28T18:31:23Z"
-    #     }
-    # }
-    # assert data[0] == correct_first_elem
-    # assert data[-1]["address"] == {
-    #                                 "street": "West Lexington St.", 
-    #                                 "housenumber": "1412"
-    #                                   }
-    # assert data[-1]["node_refs"] == [ "2199822281", "2199822390",  "2199822392", "2199822369", 
-    #                                 "2199822370", "2199822284", "2199822281"]
-
 if __name__ == "__main__":
     test()
