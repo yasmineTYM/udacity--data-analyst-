@@ -1,0 +1,371 @@
+### Third Qualitative variable
+```{r}
+library(ggplot2)
+pf<-read.csv('pseudo_facebook.tsv',sep='\t')
+ggplot(aes(x=gender,y=age),
+       data=subset(pf, !is.na(gender)))+geom_boxplot()+
+  stat_summary(fun.y = mean,geom='point',shape=4)
+
+ggplot(aes(x=age,y=friend_count),
+       data=subset(pf,!is.na(gender)))+
+  geom_line(aes(color=gender),stat = 'summary',fun.y=median)
+```
+
+###3
+# Write code to create a new data frame,
+# called 'pf.fc_by_age_gender', that contains
+# information on each age AND gender group.
+
+# The data frame should contain the following variables:
+
+#    mean_friend_count,
+#    median_friend_count,
+#    n (the number of users in each age and gender grouping)
+
+# Here is an example of the structure of your data frame. Your
+# data values will be different. Note that if you are grouping by
+# more than one variable, you will probably need to call the
+# ungroup() function.
+```{r}
+library(dplyr)
+
+age_group<-group_by(pf,age)
+age_gender<-group_by(age_group,gender)
+pf.fc_by_age_gender<-summarise(age_gender,
+          friend_count_mean=mean(as.numeric(friend_count)),
+          friend_count_median=median(as.numeric(friend_count)),
+          n=n())
+head(pf.fc_by_age_gender)
+```
+```{r}
+library(dplyr)
+pf.fc_by_age_gender<-pf %>%
+  filter(!is.na(gender))%>%
+  group_by(age,gender)%>%
+  summarise(mean_friend_count=mean(friend_count),
+            median_friend_count=median(friend_count),
+            n=n())%>%
+  ungroup()%>%
+  arrange(age)
+```
+
+
+###4
+# Create a line graph showing the
+# median friend count over the ages
+# for each gender. Be sure to use
+# the data frame you just created,
+# pf.fc_by_age_gender.
+```{r}
+ggplot(aes(x=age,y=median_friend_count),
+       data=pf.fc_by_age_gender)+
+  geom_line(aes(color=gender))
+```
+
+##7 reshaping data
+```{r}
+install.packages('reshape2')
+library(reshape2)
+
+pf.fc_by_age_gender.wide<-dcast(pf.fc_by_age_gender,
+                                age ~ gender,
+                                value.var='median_friend_count')
+head(pf.fc_by_age_gender.wide)
+```
+
+##8
+# Plot the ratio of the female to male median
+# friend counts using the data frame
+# pf.fc_by_age_gender.wide.
+
+# Think about what geom you should use.
+# Add a horizontal line to the plot with
+# a y intercept of 1, which will be the
+# base line. Look up the documentation
+# for geom_hline to do that. Use the parameter
+# linetype in geom_hline to make the
+# line dashed.
+```{r}
+ggplot(aes(x=age,y=female/male),
+       data=pf.fc_by_age_gender.wide)+
+  geom_line()+
+  geom_hline(yintercept = 1, alpha=0.3,linetype=2)
+```
+
+###9
+```{r}
+pf$year_joined<-floor(2014-pf$tenure/365)
+summary(pf$year_joined)
+```
+
+##10 cut a variable
+```{r}
+table(pf$year_joined)
+pf$year_joined.bucket<-cut(pf$year_joined,
+                           c(2004,2009,2011,2012,2014))
+```
+
+##11 plotting it all together 
+# Create a line graph of friend_count vs. age
+# so that each year_joined.bucket is a line
+# tracking the median user friend_count across
+# age. This means you should have four different
+# lines on your plot.
+
+# You should subset the data to exclude the users
+# whose year_joined.bucket is NA.
+```{r}
+ggplot(aes(x=age,y=friend_count),
+       data=subset(pf, !is.na(year_joined.bucket)))+
+  geom_line(aes(color=year_joined.bucket),
+            stat='summary',fun.y='median')
+```
+###plot the grand mean solution
+```{r}
+ggplot(aes(x=age,y=friend_count),
+       data=subset(pf, !is.na(year_joined.bucket)))+
+  geom_line(aes(color=year_joined.bucket),
+            stat='summary',fun.y=mean)+
+  geom_line(stat='summary',fun.y=mean,linetype=2)
+```
+
+
+##13
+```{r}
+with(subset(pf,tenure>=1),summary(friend_count/tenure))
+
+```
+
+##14
+
+```{r}
+# Create a line graph of mean of friendships_initiated per day (of tenure)
+# vs. tenure colored by year_joined.bucket.
+
+# You need to make use of the variables tenure,
+# friendships_initiated, and year_joined.bucket.
+
+# You also need to subset the data to only consider user with at least
+# one day of tenure.
+ggplot(aes(x=tenure,y=friendships_initiated/tenure),
+       data=subset(pf,tenure>=1))+
+         geom_line(aes(color=year_joined.bucket))
+```
+##15
+
+```{r}
+# Instead of geom_line(), use geom_smooth() to add a smoother to the plot.
+# You can use the defaults for geom_smooth() but do color the line
+# by year_joined.bucket
+ggplot(aes(x = 7 * round(tenure / 7), y = friendships_initiated / tenure),
+       data = subset(pf, tenure > 0)) +
+  geom_smooth(aes(color = year_joined.bucket))
+```
+#18
+##histograms revisited 
+```{r}
+yo<-read.csv('yogurt.csv')
+str(yo)
+
+yo$is<- factor(yo$id)
+str(yo)
+```
+```{r}
+
+ggplot(aes(x=price),data=yo)+
+ geom_histogram()
+```
+
+#19
+##number of purchases 
+
+```{r}
+# Create a new variable called all.purchases,
+# which gives the total counts of yogurt for
+# each observation or household.
+
+# One way to do this is using the transform
+# function. You can look up the function transform
+# and run the examples of code at the bottom of the
+# documentation to figure out what it does.
+
+# The transform function produces a data frame
+# so if you use it then save the result to 'yo'!
+summary(yo)
+length(unique(yo$price))
+table(yo$price)
+
+```
+
+```{r}
+yo<-transform(yo,all.purchases=strawberry+blueberry+pina.colada+plain+mixed.berry)
+```
+#20
+# Create a scatterplot of price vs time.
+
+# This will be an example of a time series plot.
+
+```{r}
+ggplot(aes(x=time,y=price),data=yo)+
+  geom_jitter(alpha=0.25,shape=21,fill=I('#F79420'))
+```
+#22
+#looking at Samples of Households
+```{r}
+#set the seed for reproducible results
+set.seed(4230)
+sample.ids<-sample(levels(yo$id),16)
+ggplot(aes(x=time,y=price),
+       data=subset(yo,id %in% sample.ids))+
+  facet_wrap(~id)+
+  geom_line()+
+  geom_point(aes(size=all.purchases),pch=1)
+```
+```{r}
+library(GGally)
+theme_set(theme_minimal(20))
+
+set.seed(1836)
+pf_subset<-pf[,c(2:15)]
+names(pf_subset)
+ggpairs(pf_subset[sample.int(nrow(pf_subset),1000),])
+```
+##generate a heat map
+```{r}
+nci<-read.table('nci.tsv')
+colnames(nci)<-c(1:64)
+
+library(reshape2)
+nci.long.samp<-melt(as.matrix(nci[1:200.]))
+names(nci.long.samp)<-c('gene','case','value')
+head(nci.long.samp)
+
+ggplot(aes(y=gene,x=case,fill=value),
+       data=nci.long.samp)+
+  geom_tile()+
+  scale_fill_gradientn(colors=colorRampPalette(c('blue','red'))(100))
+```
+#1
+
+```{r}
+# Create a histogram of diamond prices.
+# Facet the histogram by diamond color
+# and use cut to color the histogram bars.
+
+# The plot should look something like this.
+# http://i.imgur.com/b5xyrOu.jpg
+library(ggplot2)
+ggplot(diamonds,aes(x=price,fill=cut))+
+  geom_histogram(bin=50)+
+  scale_fill_brewer(type='qual')+
+  facet_wrap(~color)
+```
+#2
+
+
+```{r}
+# Create a scatterplot of diamond price vs.
+# table and color the points by the cut of
+# the diamond.
+ggplot(aes(x=table,y=price,color=cut),data=diamonds)+
+  geom_point(alpha=0.5)+
+  scale_color_brewer(type='qual')
+```
+
+
+#3
+
+
+```{r}
+# Create a scatterplot of diamond price vs.
+# volume (x * y * z) and color the points by
+# the clarity of diamonds. Use scale on the y-axis
+# to take the log10 of price. You should also
+# omit the top 1% of diamond volumes from the plot.
+diamonds$volume=diamonds$x*diamonds$y*diamonds$z
+ggplot(subset(diamonds,volume<quantile(volume,0.99)),aes(x=volume,y=price,color=clarity))+
+  geom_point(alpha=0.5)+
+  scale_color_brewer(type='div')+
+  scale_y_log10()
+```
+#5
+```{r}
+# Many interesting variables are derived from two or more others.
+# For example, we might wonder how much of a person's network on
+# a service like Facebook the user actively initiated. Two users
+# with the same degree (or number of friends) might be very
+# different if one initiated most of those connections on the
+# service, while the other initiated very few. So it could be
+# useful to consider this proportion of existing friendships that
+# the user initiated. This might be a good predictor of how active
+# a user is compared with their peers, or other traits, such as
+# personality (i.e., is this person an extrovert?).
+
+# Your task is to create a new variable called 'prop_initiated'
+# in the Pseudo-Facebook data set. The variable should contain
+# the proportion of friendships that the user initiated.
+
+
+pf$prop_initiated<-pf$friendships_initiated/ifelse(pf$friend_count>0, pf$friend_count, 1)
+```
+#6
+```{r}
+# Create a line graph of the median proportion of
+# friendships initiated ('prop_initiated') vs.
+# tenure and color the line segment by
+# year_joined.bucket.
+
+# Recall, we created year_joined.bucket in Lesson 5
+# by first creating year_joined from the variable tenure.
+# Then, we used the cut function on year_joined to create
+# four bins or cohorts of users.
+pf$year_joined.bucket<-cut(pf$year_joined,
+                           c(2004,2009,2011,2012,2014))
+ggplot(aes(x=tenure,y=prop_initiated,color=year_joined.bucket),data=pf)+
+  geom_line(stat='summary',fun.y=median)
+```
+
+#7
+```{r}
+# Smooth the last plot you created of
+# of prop_initiated vs tenure colored by
+# year_joined.bucket. You can bin together ranges
+# of tenure or add a smoother to the plot.
+ggplot(aes(x=tenure,y=prop_initiated,color=year_joined.bucket),data=pf)+
+  geom_line(stat='summary',fun.y=median)+
+  geom_smooth(color='black')
+```
+
+#9
+```{r}
+mean(pf$prop_initiated[pf$year_joined.bucket=='(2012,2014]'], na.rm=TRUE)
+```
+#10
+```{r}
+# Create a scatter plot of the price/carat ratio
+# of diamonds. The variable x should be
+# assigned to cut. The points should be colored
+# by diamond color, and the plot should be
+# faceted by clarity.
+ggplot(aes(x=cut,y=price/carat,color=color),data=diamonds)+
+  geom_point(position=position_jitter(),alpha=0.3)+
+  facet_wrap(~clarity)+
+  scale_color_brewer(type='div')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
