@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+
+<!-- Example based on http://bl.ocks.org/mbostock/3887118 -->
+<!-- Tooltip example from http://www.d3noob.org/2013/01/adding-tooltips-to-d3js-graph.html -->
+<!-- Coding style based on http://gist.github.com/mbostock/5977197 -->
+
+<style>
+body {
+  font: 11px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.dot {
+  stroke: #000;
+}
+
+.tooltip {
+  position: absolute;
+  width: 200px;
+  height: 28px;
+  pointer-events: none;
+}
+#lineChartTitle1 {
+  font-family: Verdana;
+  font-size  : 24px;
+  fill       : grey;
+  font-weight: bold;
+  text-anchor: middle;
+}
+#lineChartTitle2 {
+  font-family: Verdana;
+  font-size  : 72px;
+  fill       : grey;
+  text-anchor: middle;
+  font-weight: bold;
+  /*font-style: italic;*/
+}
+}
+</style>
+<body>
+<div id="scatterplot"></div>
+<div id="barChart"></div>  
+<div id="lineChart"></div>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+
+<script>
+function scatterplot(){
+  var margin = {top: 20, right: 20, bottom: 30, left: 40},
+    width = 1600 - margin.left - margin.right,
+    height = 800 - margin.top - margin.bottom;
+
+/* 
+ * value accessor - returns the value to encode for a given data object.
+ * scale - maps value to a visual display encoding, such as a pixel position.
+ * map function - maps from data value to display value
+ * axis - sets up axis
+ */ 
+
+// setup x 
+var xValue = function(d) { return d.h;}, // data -> value
+    xScale = d3.scale.linear().range([0, width]), // value -> display
+    xMap = function(d) { return xScale(xValue(d));}, // data -> display
+    xAxis = d3.svg.axis().scale(xScale).orient("bottom");
+
+// setup
+var yValue = function(d) { return d.w;}, // data -> value
+    yScale = d3.scale.linear().range([height, 0]), // value -> display
+    yMap = function(d) { return yScale(yValue(d));}, // data -> display
+    yAxis = d3.svg.axis().scale(yScale).orient("left");
+
+// setup fill color
+var cValue = function(d) { return d.handedness;},
+    color = d3.scale.category10();
+
+// add the graph canvas to the body of the webpage
+var svg = d3.select("#scatterplot").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+// add the tooltip area to the webpage
+var tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+
+// load data
+d3.csv("baseball_data.csv", function(error, data) {
+  var count_B=0
+  var count_L=0
+  var count_R=0
+  // change string (from CSV) into number format
+  data.forEach(function(d) {
+    d.h= +d.height;
+    d.w= +d.weight;
+    d.r= +d.avg;
+    if (d.handedness=='R'){count_R++}
+    else if (d.handedness=='L'){count_L++}
+    else if (d.handedness=='B'){count_B++}
+    //console.log(d);
+
+  });
+  // console.log(count_B)
+  // console.log(count_R)
+  // console.log(count_L)
+  // don't want dots overlapping axis, so add in buffer to data domain
+  xScale.domain([d3.min(data, xValue)-1, d3.max(data, xValue)+1]);
+  yScale.domain([d3.min(data, yValue)-1, d3.max(data, yValue)+1]);
+
+  // x-axis
+  svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis)
+    .append("text")
+      .attr("class", "label")
+      .attr("x", width)
+      .attr("y", -6)
+      .style("text-anchor", "end")
+      .text("Height");
+
+  // y-axis
+  svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis)
+    .append("text")
+      .attr("class", "label")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Weight");
+
+  // draw dots
+ var dot= svg.selectAll(".dot")
+      .data(data)
+    .enter().append("circle")
+      //.attr("class", "dot")
+      .attr('class',function(d){return d.handedness;})
+      .attr("r", function(d){return (10*d.avg)^2*3})
+      .attr('opacity',0.5)
+      .style('stroke','none')
+
+      .attr("cx", function(d) { return xScale(xValue(d))+Math.random()*100;}, )
+      .attr("cy", yMap)
+      .style("fill", function(d) { return color(cValue(d));}) 
+      .on("mouseover", function(d) {
+          tooltip.transition()
+               .duration(200)
+               .style("opacity", .9);
+          tooltip.html(d["name"] + "<br/> (" + xValue(d) 
+          + ", " + yValue(d) + ")"+'<br/>HR'+d.HR)
+               .style("left", (d3.event.pageX + 5) + "px")
+               .style("top", (d3.event.pageY - 28) + "px");
+      })
+      .on("mouseout", function(d) {
+          tooltip.transition()
+               .duration(500)
+               .style("opacity", 0);
+      });
+  // //jitter
+  // dot.each(function(d,i){
+  //   d.jitter=xScale(d.x)+random_jitter();
+  // })
+
+  // draw legend
+  var legend = svg.selectAll(".legend")
+      .data(color.domain())
+    .enter().append("g")
+      .attr("class", "legend")
+      .attr("transform", function(d, i) { return "translate(0," + i * 50 + ")"; })
+       .on('mouseover',function(d){
+        if (d=='B'){
+          svg.selectAll('.L')
+          .style('opacity',0)
+          svg.selectAll('.R')
+          .style('opacity',0)
+          titleB.style('opacity',1)
+          titlesum.style('opacity',0)
+        }
+        if (d=='L'){
+          svg.selectAll('.R')
+            .style('opacity',0)
+
+          svg.selectAll('.B')
+          .style('opacity',0)
+          titleL.style('opacity',1)
+          titlesum.style('opacity',0)
+        }
+        if (d=='R'){
+          svg.selectAll('.L')
+            .style('opacity',0)
+          svg.selectAll('.B')
+          .style('opacity',0)
+           titleR.style('opacity',1)
+            titlesum.style('opacity',0)
+        }})
+       .on('mouseout',function(d){
+        if (d=='B'){
+          svg.selectAll('.L')
+          .style('opacity',.5)
+          svg.selectAll('.R')
+          .style('opacity',.5)
+          titleB.style('opacity',0)
+            titlesum.style('opacity',1)
+        }
+        if (d=='L'){
+          svg.selectAll('.R')
+            .style('opacity',.5)
+
+          svg.selectAll('.B')
+          .style('opacity',.5)
+          titleL.style('opacity',0)
+            titlesum.style('opacity',1)
+        }
+        if (d=='R'){
+          svg.selectAll('.L')
+            .style('opacity',.5)
+
+          svg.selectAll('.B')
+          .style('opacity',.5)
+          titleR.style('opacity',0)
+            titlesum.style('opacity',1)
+        }})
+      
+
+
+// svg.selectAll('.dot')
+//     .append(function(d){
+//       if(d.handedness='L'){
+//         d3.select(this).append('class','L')
+//       }
+//       else if(d.handedness="R"){
+//         d3.select(this).append('class','R')
+//       }else{ d3.select(this).append('class','B')}
+//     })
+
+
+
+  // draw legend colored rectangles
+  legend.append("rect")
+      .attr("x", width - 18)
+      .attr("width", 40)
+      .attr("height", 40)
+      .attr('opacity','0.5')
+      .style("fill", color)
+      .on('mouseover',function(d){
+        d3.select(this).style('opacity',1)
+      .on('mouseout',function(d){
+        d3.select(this).style('opacity',.5)
+      })
+      });
+
+
+  // draw legend text
+  legend.append("text")
+      .attr("x", width - 24)
+      .attr("y", 9)
+      .attr("dy", ".35em")
+      .style("text-anchor", "end")
+      .text(function(d) { return d;})
+  
+  
+  var titleL=svg.append("text")
+    .text("Total Number:"+count_L)
+    .attr("id","lineChartTitle1") 
+    .attr("x",margin.left + ((width + margin.right)/2))
+    .style('opacity',0)
+   // .attr("y", 10);
+
+  var titleR=svg.append("text")
+    .text("Total Number:"+count_R)
+    .attr("id","lineChartTitle1") 
+    .attr("x",margin.left + ((width + margin.right)/2))
+    .style('opacity',0)
+
+  var titleB=svg.append("text")
+    .text("Total Number:"+count_B)
+    .attr("id","lineChartTitle1") 
+    .attr("x",margin.left + ((width + margin.right)/2))
+    .style('opacity',0)
+
+  var titlesum=svg.append("text")
+    .text("Total Number:"+(count_B+count_R+count_L))
+    .attr("id","lineChartTitle1") 
+    .attr("x",margin.left + ((width + margin.right)/2))
+    .style('opacity',1)
+ 
+});
+}
+
+
+
+scatterplot();
+
+
+</script>
+</body>
+</html>
